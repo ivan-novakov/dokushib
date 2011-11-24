@@ -1,0 +1,9 @@
+v0.5.0 (2009-02-23)
+
+- user entitlement (for example taken from the eduPersonEntitlement attribtue) may be mapped to a user group
+- small enhancements of the code
+
+
+v0.4.0 (2008-11-07)
+
+- initial public version
