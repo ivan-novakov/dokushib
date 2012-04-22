@@ -6,7 +6,7 @@
  * @author		Ivan Novakov <ivan.novakov@debug.cz>
  * @license		GPL 2 (http://www.gnu.org/licenses/gpl.html)
  * @copyright	Ivan Novakov 2009-02-23
- * @version		0.5.0
+ * @version		0.5.1
  *
  */
 
