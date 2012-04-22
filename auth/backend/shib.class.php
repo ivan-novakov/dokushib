@@ -1,11 +1,11 @@
 <?php
 
 /*
- * Shibboleth authentization backend
+ * Shibboleth authentization backend.
  *
  * @author		Ivan Novakov <ivan.novakov@debug.cz>
  * @license		GPL 2 (http://www.gnu.org/licenses/gpl.html)
- * @copyright	Ivan Novakov 2009-02-23
+ * @copyright	Ivan Novakov (c) 2009-2012
  * @version		0.5.1
  *
  */
@@ -13,17 +13,33 @@
 define('DOKU_AUTH', dirname(__FILE__));
 require_once (DOKU_AUTH . '/basic.class.php');
 
-define('DEF_SHIB_HANDLEBASE', '/Shibboleth.sso');
-
 
 class auth_shib extends auth_basic
 {
+    /**
+     * Default Shibboleth base handler location.
+     * 
+     * @var string
+     */
+    protected $_defShibHandleBase = '/Shibboleth.sso';
     
-    var $_options = array();
-    var $_userInfo = array();
+    /**
+     * Internal options array.
+     * @var array
+     */
+    protected $_options = array();
+    
+    /**
+     * Internal user data array.
+     * @var array
+     */
+    protected $_userInfo = array();
 
 
-    function auth_shib ()
+    /**
+     * Constructor.
+     */
+    public function __construct ()
     {
         $this->cando['external'] = true;
         $this->cando['logoff'] = true;
@@ -32,15 +48,17 @@ class auth_shib extends auth_basic
     }
 
 
-    function _init ()
+    /**
+     * Internal initializations.
+     */
+    protected function _init ()
     {
         global $conf;
         
         $defaults = array(
-            
-            'shibboleth_base_handle' => DEF_SHIB_HANDLEBASE, 
+            'shibboleth_base_handle' => $this->_defShibHandleBase, 
             'lazy_sessions' => false, 
-            'logout_redirect' => DEF_SHIB_HANDLEBASE . '/Logout?return=' . $_SERVER['HTTP_REFERER'], 
+            'logout_redirect' => $this->_defShibHandleBase . '/Logout?return=' . $_SERVER['HTTP_REFERER'], 
             'var_remote_user' => 'REMOTE_USER', 
             'var_name' => '', 
             'var_mail' => '', 
@@ -60,7 +78,13 @@ class auth_shib extends auth_basic
     }
 
 
-    function _getOption ($optionName)
+    /**
+     * Returns an option value by its name. Returns NULL, if option not set.
+     * 
+     * @param string $optionName
+     * @return mixed
+     */
+    protected function _getOption ($optionName)
     {
         if (isset($this->_options[$optionName])) {
             return $this->_options[$optionName];
@@ -69,7 +93,12 @@ class auth_shib extends auth_basic
     }
 
 
-    function logOff ()
+    /**
+     * logOff() implementation.
+     * 
+     * @see auth_basic::logOff()
+     */
+    public function logOff ()
     {
         # Redirect to central logout
         $redirectURL = $this->_getOption('logout_redirect');
@@ -78,13 +107,27 @@ class auth_shib extends auth_basic
     }
 
 
-    function trustExternal ()
+    /**
+     * trustExternal() implementation.
+     * 
+     * @see auth_basic::trustExternal()
+     * @return boolean
+     */
+    public function trustExternal ()
     {
         return $this->_authenticate();
     }
 
 
-    function _authenticate ()
+    /**
+     * Tries to authenticate the user.
+     * 
+     * Checks the environment variables and sets the user identity with the appropriate attributes. Sets user's groups.
+     * Returns true, if successful.
+     * 
+     * @return boolean
+     */
+    protected function _authenticate ()
     {
         
         $remoteUser = $this->_getShibVar($this->_getOption('var_remote_user'));
@@ -94,8 +137,9 @@ class auth_shib extends auth_basic
             $userName = $this->_getUserName($userId);
             
             $this->_userInfo = array(
-                
-            'uid' => $userId, 'name' => $userName, 'mail' => ''
+                'uid' => $userId, 
+                'name' => $userName, 
+                'mail' => ''
             );
             
             $mails = $this->_getShibVar($this->_getOption('var_mail'), true);
@@ -107,7 +151,8 @@ class auth_shib extends auth_basic
                 $this->_addUserGroup($this->_getOption('defaultgroup'));
             }
             
-            if ((NULL !== $this->_getOption('superusers')) && is_array($this->_getOption('superusers')) && in_array($userId, $this->_getOption('superusers'))) {
+            if ((NULL !== $this->_getOption('superusers')) && is_array($this->_getOption('superusers')) && in_array(
+                $userId, $this->_getOption('superusers'))) {
                 $this->_addUserGroup($this->_getOption('admingroup'));
             }
             
@@ -128,7 +173,16 @@ class auth_shib extends auth_basic
     }
 
 
-    function _getUserName ($userId)
+    /**
+     * Returns the user's real name.
+     * 
+     * The real name is resolved either through a template ('tpl_user_name' configuration directive) or directly
+     * from an attribute. If neither is successful, the user ID is returned.
+     * 
+     * @param string $userId
+     * @return string
+     */
+    protected function _getUserName ($userId)
     {
         if (($tplUserName = $this->_getOption('tpl_user_name'))) {
             if (($userName = $this->_getUserNameFromTpl($tplUserName))) {
@@ -147,7 +201,13 @@ class auth_shib extends auth_basic
     }
 
 
-    function _getUserNameFromTpl ($tplUserName)
+    /**
+     * Resolves the template for the user's real name and returns it.
+     * 
+     * @param string $tplUserName
+     * @return string
+     */
+    protected function _getUserNameFromTpl ($tplUserName)
     {
         $matches = array();
         if (preg_match_all('/({([^{}]+)})/', $tplUserName, $matches)) {
@@ -169,7 +229,10 @@ class auth_shib extends auth_basic
     }
 
 
-    function _setGroups ()
+    /**
+     * Sets user groups directly from the configured environment variable ('var_groups' config option).
+     */
+    protected function _setGroups ()
     {
         $varGroups = $this->_getOption('var_groups');
         if (! $varGroups) {
@@ -179,12 +242,16 @@ class auth_shib extends auth_basic
         $groups = $this->_getShibVar($varGroups, true);
         foreach ($groups as $groupName) {
             $this->_addUserGroup($groupName);
-            //$this->_userInfo['grps'][] = trim($group);
         }
     }
 
 
-    function _setCustomGroups ($userId)
+    /**
+     * Sets groups locally defined in the custom groups file.
+     * 
+     * @param string $userId
+     */
+    protected function _setCustomGroups ($userId)
     {
         if (! $this->_getOption('customgroups')) {
             return;
@@ -218,11 +285,13 @@ class auth_shib extends auth_basic
                 $this->_addUserGroup($groupName);
             }
         }
-    
     }
 
 
-    function _setEntitlementGroups ()
+    /**
+     * Sets groups defined by user entitlement.
+     */
+    protected function _setEntitlementGroups ()
     {
         $entVarName = $this->_getOption('var_entitlement');
         if (! $entVarName) {
@@ -251,7 +320,12 @@ class auth_shib extends auth_basic
     }
 
 
-    function _addUserGroup ($groupName)
+    /**
+     * Adds a group to the user's group list.
+     * 
+     * @param string $groupName
+     */
+    protected function _addUserGroup ($groupName)
     {
         if (! isset($this->_userInfo['grps'])) {
             $this->_userInfo['grps'] = array();
@@ -260,7 +334,10 @@ class auth_shib extends auth_basic
     }
 
 
-    function _saveUserInfo ()
+    /**
+     * Saves user info into the session.
+     */
+    protected function _saveUserInfo ()
     {
         global $USERINFO;
         
@@ -277,7 +354,13 @@ class auth_shib extends auth_basic
     }
 
 
-    function _getShibVar ($varName, $multivalue = false)
+    /**
+     * Returns an environment variable.
+     * 
+     * @param string $varName
+     * @param boolean $multivalue Set true, to expect multivalue attribute.
+     */
+    protected function _getShibVar ($varName, $multivalue = false)
     {
         if (! isset($_SERVER[$varName])) {
             return NULL;
@@ -292,7 +375,12 @@ class auth_shib extends auth_basic
     }
 
 
-    function _log ($value)
+    /**
+     * Prints message to the log, if 'debug' is on.
+     * 
+     * @param string $value
+     */
+    protected function _log ($value)
     {
         if ($this->_getOption('debug')) {
             error_log(print_r($value, true));
