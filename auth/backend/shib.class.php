@@ -74,6 +74,7 @@ class auth_shib extends auth_basic
         # Redirect to central logout
         $redirectURL = $this->_getOption('logout_redirect');
         header("Location: {$redirectURL}");
+        exit();
     }
 
 
