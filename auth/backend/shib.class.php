@@ -6,7 +6,7 @@
  * @author		Ivan Novakov <ivan.novakov@debug.cz>
  * @license		GPL 2 (http://www.gnu.org/licenses/gpl.html)
  * @copyright	Ivan Novakov (c) 2009-2012
- * @version		0.5.1
+ * @version		0.6.0
  *
  */
 
@@ -16,21 +16,24 @@ require_once (DOKU_AUTH . '/basic.class.php');
 
 class auth_shib extends auth_basic
 {
+
     /**
      * Default Shibboleth base handler location.
      * 
      * @var string
      */
     protected $_defShibHandleBase = '/Shibboleth.sso';
-    
+
     /**
      * Internal options array.
+     * 
      * @var array
      */
     protected $_options = array();
-    
+
     /**
      * Internal user data array.
+     * 
      * @var array
      */
     protected $_userInfo = array();
@@ -56,9 +59,13 @@ class auth_shib extends auth_basic
         global $conf;
         
         $defaults = array(
+            // OBSOLETE
             'shibboleth_base_handle' => $this->_defShibHandleBase, 
+            
             'lazy_sessions' => false, 
-            'logout_redirect' => $this->_defShibHandleBase . '/Logout?return=' . $_SERVER['HTTP_REFERER'], 
+            'use_dokuwiki_session' => false, 
+            'logout_redirect' => '', 
+            'logout_return_url' => '', 
             'var_remote_user' => 'REMOTE_USER', 
             'var_name' => '', 
             'var_mail' => '', 
@@ -71,7 +78,12 @@ class auth_shib extends auth_basic
             'customgroups' => false, 
             'customgroups_file' => DOKU_CONF . 'custom_groups.php', 
             'entitlement_groups' => array(), 
-            'debug' => false
+            'debug' => false, 
+            'debug_encode_nonscalar' => false, 
+            
+            // not implemented
+            'log_file' => '', 
+            'log_enabled' => false
         );
         
         $this->_options = (array) $conf['auth']['shib'] + $defaults;
@@ -96,13 +108,21 @@ class auth_shib extends auth_basic
     /**
      * logOff() implementation.
      * 
+     * The 'logout_redirect' value should be an URL, where the current Shibboleth session is ended - either using
+     * the '/Logout' Shibboleth handler, or some custom cookie management.
+     * 
      * @see auth_basic::logOff()
      */
     public function logOff ()
     {
-        # Redirect to central logout
-        $redirectURL = $this->_getOption('logout_redirect');
-        header("Location: {$redirectURL}");
+        $url = $this->_getOption('logout_redirect');
+        if (! $url) {
+            $url = $this->_getLogoutUrl($this->_getOption('logout_return_url'));
+        }
+        
+        $this->_debugLog(sprintf("Logout redirect: %s", $url));
+        
+        header('Location: ' . $url);
         exit();
     }
 
@@ -115,7 +135,12 @@ class auth_shib extends auth_basic
      */
     public function trustExternal ()
     {
-        return $this->_authenticate();
+        if ($this->_authenticate()) {
+            $this->_setGlobalUserInfo();
+            return true;
+        }
+        
+        return false;
     }
 
 
@@ -129,6 +154,10 @@ class auth_shib extends auth_basic
      */
     protected function _authenticate ()
     {
+        if ($this->_getOption('use_dokuwiki_session') && ($userInfo = $this->_loadUserInfo())) {
+            $this->_debugLog(sprintf("Loaded user from session", $userInfo['uid']));
+            return true;
+        }
         
         $remoteUser = $this->_getShibVar($this->_getOption('var_remote_user'));
         if ($remoteUser) {
@@ -151,14 +180,16 @@ class auth_shib extends auth_basic
                 $this->_addUserGroup($this->_getOption('defaultgroup'));
             }
             
-            if ((NULL !== $this->_getOption('superusers')) && is_array($this->_getOption('superusers')) && in_array(
-                $userId, $this->_getOption('superusers'))) {
+            if ((NULL !== $this->_getOption('superusers')) && is_array($this->_getOption('superusers')) && in_array($userId, $this->_getOption('superusers'))) {
                 $this->_addUserGroup($this->_getOption('admingroup'));
             }
             
             $this->_setGroups();
             $this->_setCustomGroups($userId);
             $this->_setEntitlementGroups();
+            
+            $this->_debugLog('User authenticated');
+            $this->_debugLog($this->_userInfo, true);
             
             $this->_saveUserInfo();
             
@@ -259,7 +290,7 @@ class auth_shib extends auth_basic
         
         $groupsFile = $this->_getOption('customgroups_file');
         if (! file_exists($groupsFile)) {
-            $this->_log(sprintf("Non-existent custom groups file '%s'.", $groupsFile));
+            $this->_debugLog(sprintf("Non-existent custom groups file '%s'.", $groupsFile));
             return;
         }
         
@@ -267,12 +298,12 @@ class auth_shib extends auth_basic
         @include $groupsFile;
         
         if (! isset($customGroups)) {
-            $this->_log('Custom groups variable not found.');
+            $this->_debugLog('Custom groups variable not found.');
             return;
         }
         
         if (! is_array($customGroups) || empty($customGroups)) {
-            $this->_log('No custom groups specified.');
+            $this->_debugLog('No custom groups specified.');
             return;
         }
         
@@ -295,19 +326,19 @@ class auth_shib extends auth_basic
     {
         $entVarName = $this->_getOption('var_entitlement');
         if (! $entVarName) {
-            $this->_log('entitlement variable name not set');
+            $this->_debugLog('entitlement variable name not set');
             return;
         }
         
         $entitlement = $this->_getShibVar($entVarName, true);
         if (! $entitlement) {
-            $this->_log('no entitlement values set');
+            $this->_debugLog('no entitlement values set');
             return;
         }
         
         $entGroups = $this->_getOption('entitlement_groups');
         if (! $entGroups || ! is_array($entGroups)) {
-            $this->_log('entitlement groups not configured');
+            $this->_debugLog('entitlement groups not configured');
             return;
         }
         
@@ -339,18 +370,63 @@ class auth_shib extends auth_basic
      */
     protected function _saveUserInfo ()
     {
-        global $USERINFO;
-        
-        $USERINFO = $this->_userInfo;
-        $_SESSION[DOKU_COOKIE]['auth']['user'] = $USERINFO['uid'];
-        $_SESSION[DOKU_COOKIE]['auth']['info'] = $USERINFO;
-        
-        // Despite setting the user into the session, DokuWiki still uses hard-coded REMOTE_USER variable    
-        if ($this->_getOption('var_remote_user') != 'REMOTE_USER') {
-            $_SERVER['REMOTE_USER'] = $USERINFO['uid'];
+        $_SESSION[DOKU_COOKIE]['auth']['user'] = $this->_userInfo['uid'];
+        $_SESSION[DOKU_COOKIE]['auth']['info'] = $this->_userInfo;
+    }
+
+
+    /**
+     * Loads user info from the session.
+     */
+    protected function _loadUserInfo ()
+    {
+        $this->_userInfo = array();
+        if (isset($_SESSION[DOKU_COOKIE]['auth']['info']['uid']) && $_SESSION[DOKU_COOKIE]['auth']['info']['uid'] != '') {
+            $this->_userInfo = $_SESSION[DOKU_COOKIE]['auth']['info'];
+            return $this->_userInfo;
         }
         
-        $this->_log($this->_userInfo);
+        return NULL;
+    }
+
+
+    /**
+     * Sets user info accordingly to the DokuWiki speifics.
+     * 
+     * Sets the $USERINFO global variable. Sets the REMOTE_USER variable, if it is not populated with the 
+     * username from the Shibboleth environment. Despite having the $USERINFO global array, it seems that
+     * DokuWiki still uses the REMOTE_USER value.
+     * 
+     * @param array $userInfo
+     */
+    protected function _setGlobalUserInfo (Array $userInfo = NULL)
+    {
+        global $USERINFO;
+        
+        if (! $userInfo) {
+            $userInfo = $this->_userInfo;
+        }
+        
+        $USERINFO = $userInfo;
+        
+        if ($this->_getOption('var_remote_user') != 'REMOTE_USER') {
+            $_SERVER['REMOTE_USER'] = $this->_userInfo['uid'];
+        }
+    }
+
+
+    /**
+     * Returns current user uid value (username) if available.
+     * 
+     * @return string
+     */
+    protected function _getCurrentUid ()
+    {
+        if (isset($this->_userInfo['uid']) && $this->_userInfo['uid']) {
+            return $this->_userInfo['uid'];
+        }
+        
+        return 'unknown';
     }
 
 
@@ -376,14 +452,45 @@ class auth_shib extends auth_basic
 
 
     /**
+     * Generates a "logout" URL - an URL, where the current authentication data are destroyed.
+     * 
+     * It uses the Shibboleth Logout handler.
+     * 
+     * @param string $returnUrl
+     * @param string $handlerName
+     * @return string
+     */
+    protected function _getLogoutUrl ($returnUrl = NULL, $handlerName = 'Logout')
+    {
+        if (! $returnUrl) {
+            $returnUrl = $_SERVER['HTTP_REFERER'];
+        }
+        
+        return sprintf("https://%s%s/%s?return=%s", $_SERVER['HTTP_HOST'], $this->_defShibHandleBase, $handlerName, $returnUrl);
+    }
+
+
+    /**
      * Prints message to the log, if 'debug' is on.
      * 
      * @param string $value
      */
-    protected function _log ($value)
+    protected function _debugLog ($value)
     {
         if ($this->_getOption('debug')) {
-            error_log(print_r($value, true));
+            if (! is_scalar($value)) {
+                if ($this->_getOption('debug_encode_nonscalar')) {
+                    $value = json_encode($value);
+                } else {
+                    $value = print_r($value, true);
+                }
+            }
+            
+            /*
+             * The log format is:
+             * [username/ip address]: message [request uri]
+             */
+            error_log(sprintf("[%s/%s]: %s [%s]", $this->_getCurrentUid(), $_SERVER['REMOTE_ADDR'], $value, $_SERVER['REQUEST_URI']));
         }
     }
 
