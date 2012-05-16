@@ -1,13 +1,11 @@
 <?php
 
-/*
+/**
  * Shibboleth authentization backend.
  *
  * @author		Ivan Novakov <ivan.novakov@debug.cz>
- * @license		GPL 2 (http://www.gnu.org/licenses/gpl.html)
- * @copyright	Ivan Novakov (c) 2009-2012
- * @version		0.6.0
- *
+ * @license		FreeBSD http://debug.cz/license/freebsd
+ * @version		0.6.1
  */
 
 define('DOKU_AUTH', dirname(__FILE__));
@@ -347,7 +345,6 @@ class auth_shib extends auth_basic
                 $this->_addUserGroup($entGroups[$entVal]);
             }
         }
-    
     }
 
 
@@ -493,7 +490,6 @@ class auth_shib extends auth_basic
             error_log(sprintf("[%s/%s]: %s [%s]", $this->_getCurrentUid(), $_SERVER['REMOTE_ADDR'], $value, $_SERVER['REQUEST_URI']));
         }
     }
-
 }
 
 ?>

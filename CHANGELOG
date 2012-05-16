@@ -1,3 +1,17 @@
+v0.6.1 (2012-05-15)
+
+- license changed from GPL2 to FreeBSD
+- configuration samples reformatted
+
+
+v0.6.0 (2012-04-25)
+
+- shib.class.php modifications:
+  - 'use_dokuwiki_session' option
+  - betterf debug logging
+  - some code refactoring
+  
+
 v0.5.1 (2012-04-22)
 
 - shib.class.php modifications:
