@@ -1,16 +1,15 @@
 <?php
 
-/*
+/**
  * Shibboleth Login plugin 
  *
  * Intercepts the 'login' action and redirects the user to the Shibboleth Session Initiator Handler
  * instead of showing the login form. Intended to work with the Shibboleth authentication backend with 
  * "lazy session" enabled.
  * 
- * @author		Ivan Novakov <ivan.novakov@debug.cz>
- * @license 	GPL 2 (http://www.gnu.org/licenses/gpl.html)
- * @version		0.4.0
- *
+ * @author Ivan Novakov <ivan.novakov@debug.cz>
+ * @license FreeBSD http://debug.cz/license/freebsd
+ * @link https://github.com/ivan-novakov/dokushib
  */
 
 if (! defined('DOKU_INC'))
@@ -30,10 +29,10 @@ class action_plugin_shiblogin extends DokuWiki_Action_Plugin
             
             'author' => 'Ivan Novakov', 
             'email' => 'ivan.novakov@debug.cz', 
-            'date' => '2008-11-07', 
+            'date' => '2012-05-10', 
             'name' => 'Shibboleth Login Plugin', 
             'desc' => 'Action plugin that intercepts the "login" action and triggers Shibboleth Session Initiation. To be used with the Shibboleth authentication backend with lazy sessions enabled.', 
-            'url' => 'http://wiki.debug.cz/dokuwiki/plugins/shiblogin'
+            'url' => 'https://github.com/ivan-novakov/dokushib'
         );
     }
 
@@ -52,10 +51,10 @@ class action_plugin_shiblogin extends DokuWiki_Action_Plugin
             $loginHandlerLocation = $this->getConf('login_handler_location');
             if (! $loginHandlerLocation) {
                 $target = $this->getConf('target');
-                if (!$target) {
-                  $target = $this->_mkRefererUrl();
+                if (! $target) {
+                    $target = $this->_mkRefererUrl();
                 }
-            
+                
                 $loginHandlerLocation = $this->_mkUrl($_SERVER['HTTP_HOST'], $this->_mkShibHandler(), array(
                     
                     'target' => $target
@@ -109,5 +108,4 @@ class action_plugin_shiblogin extends DokuWiki_Action_Plugin
         
         return '?' . implode('amp;', $queryParams);
     }
-
 }

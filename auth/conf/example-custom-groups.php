@@ -1,12 +1,17 @@
 <?php
-
-# Custom groups example file
+/**
+ * Example custom groups definition file. 
+ */
 
 $customGroups = array(
     
-	'somegroup' => array(
-    	'joe', 'hans', 'ivan'		
+    /*
+     * The group called "somegroup" has members "joe", "hans" and "ivan".
+     */
+    'somegroup' => array(
+        'joe', 
+        'hans', 
+        'ivan'
     )
 );
 
-?>
