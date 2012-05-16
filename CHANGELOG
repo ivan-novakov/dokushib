@@ -8,7 +8,7 @@ v0.6.0 (2012-04-25)
 
 - shib.class.php modifications:
   - 'use_dokuwiki_session' option
-  - betterf debug logging
+  - better debug logging
   - some code refactoring
   
 
