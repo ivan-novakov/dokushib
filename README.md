@@ -1,6 +1,11 @@
 Shibboleth authentication backend for DokuWiki
 ==============================================
 
+---
+__Important note__: This authentication backend is compatible with DokuWiki versions up to __2013-05-10 "Weatherwax"__. For newer versions use the [Shibboleth Authentication Plugin](https://github.com/ivan-novakov/dokuwiki-shibboleth-auth).
+
+---
+
 * Homepage: [GitHub project][homepage]
 * License: [FreeBSD][license]
 * Author: [Ivan Novakov][contact]
@@ -17,6 +22,7 @@ Requirements
 
 * PHP 5.x
 * Shibboleth SP 2.x (mostly as Apache module)
+* DokuWiki __2012-10-13 “Adora Belle”__ or older
 
 Installation
 ------------
